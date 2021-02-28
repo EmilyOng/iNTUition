@@ -1,4 +1,4 @@
-# dev
+# BunnyNotes
 
 ## Project setup
 ```
