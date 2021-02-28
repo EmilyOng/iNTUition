@@ -1,4 +1,13 @@
+import { winkNLP } from './winkjs-model'
+import its from 'wink-nlp/src/its.js'
 import { string, tokens } from 'wink-nlp-utils'
+import { format } from 'date-fns'
+
+export interface Timeline {
+  date: Date
+  event: string
+  displayDate: string
+}
 
 interface FreqTable {
   [key: string]: number
@@ -30,10 +39,10 @@ const createFreqTable = (text: string): FreqTable => {
 }
 
 const scoreSentences = (text: string, freqTable: FreqTable): string => {
-  const splitSentence = new RegExp(/([^?.]+[?.])(?:\s|$)/gm)
-  const sentenceTokens = text
-    .split(splitSentence)
-    .filter(word => word.length > 0)
+  const sentenceTokens: string[] = winkNLP
+    .readDoc(text)
+    .sentences()
+    .out()
   const sentenceFreq: FreqTable = {}
   const wordFreqKeys = Object.keys(freqTable)
   sentenceTokens.forEach(sentenceToken => {
@@ -57,7 +66,7 @@ const scoreSentences = (text: string, freqTable: FreqTable): string => {
       sentenceFreqKeys.includes(sentenceToken) &&
       sentenceFreq[sentenceToken] >= threshold
     ) {
-      return summary.concat(' ' + sentenceToken)
+      return summary.concat(sentenceToken)
     }
     return summary
   }, '')
@@ -67,4 +76,29 @@ const scoreSentences = (text: string, freqTable: FreqTable): string => {
 export const makeSummary = (text: string): string => {
   const freqTable = createFreqTable(text)
   return scoreSentences(text, freqTable)
+}
+
+export const analyseSentiment = (text: string): number => {
+  return Math.round(winkNLP.readDoc(text).out(its.sentiment) * 10)
+}
+
+export const getTimeline = (text: string) => {
+  const doc = winkNLP.readDoc(text)
+  const timelineData: Timeline[] = []
+  doc.entities().filter((e: any) => {
+    if (e.out(its.type) === 'DATE' || e.out(its.type) === 'TIME') {
+      try {
+        timelineData.push({
+          date: new Date(e.out()),
+          event: e.parentSentence().out(),
+          displayDate: format(new Date(e.out()), 'dd/MM/yyyy')
+        })
+      } catch (e) {
+        return
+      }
+    }
+  })
+  return timelineData.sort((a, b) =>
+    a.date > b.date ? 1 : b.date > a.date ? -1 : 0
+  )
 }
